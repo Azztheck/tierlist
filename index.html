@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<title>Tier list</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#15161a;color:#f2f2f2;font:15px/1.2 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden;overscroll-behavior:none}
+#porte{height:100%;display:grid;place-items:center}
+#porte form{display:flex;flex-direction:column;gap:10px;width:min(300px,86vw)}
+input,button{font:inherit;padding:11px 12px;border-radius:9px;border:1px solid #393b44;background:#22242b;color:inherit}
+button{cursor:pointer;font-weight:650}
+button.go{background:#ffd23f;border-color:#ffd23f;color:#17171a}
+#err{color:#ff8a70;min-height:1.2em}
+#app{height:100dvh;display:none;flex-direction:column;max-width:1000px;margin:auto;padding:env(safe-area-inset-top) 6px env(safe-area-inset-bottom)}
+header{display:flex;gap:6px;padding:6px 0;align-items:center}
+header input{flex:1;min-width:0;padding:8px 10px}
+header button{padding:8px 11px;white-space:nowrap}
+#tiers{flex:1;min-height:0;display:flex;flex-direction:column;gap:3px}
+.rang{flex:1 1 0;min-height:0;display:flex;background:#24262d;border-radius:6px;overflow:hidden}
+.rang.sur,#bac.sur{outline:2px solid #fff;outline-offset:-2px}
+.lab{flex:0 0 74px;display:grid;place-items:center;text-align:center;color:#111;font-weight:800;font-size:13px;padding:3px;user-select:none}
+.zone{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-content:center;padding:2px;overflow:hidden}
+#bas{padding:6px 0 4px}
+#aide{font-size:12px;color:#a9abb4;text-align:center;padding-bottom:4px}
+#bac{display:flex;gap:4px;overflow-x:auto;min-height:92px;padding:3px;background:#1d1f25;border-radius:6px;touch-action:pan-x}
+#bac .it{flex:0 0 86px;width:86px;height:86px}
+.it{position:relative;border-radius:5px;overflow:hidden;user-select:none;-webkit-user-select:none;touch-action:none;cursor:grab;background:#333}
+#bac .it{touch-action:pan-x}
+.zone .it{margin:1px}
+.it img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-touch-callout:none}
+.it span{position:absolute;inset:auto 0 0 0;background:#000a;font-size:11px;font-weight:650;text-align:center;padding:1px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it.choisi{outline:3px solid #ffd23f;outline-offset:-3px}
+#fantome{position:fixed;z-index:9;pointer-events:none;width:86px;height:86px;transform:translate(-50%,-50%) scale(1.08);box-shadow:0 8px 22px #000b}
+@media(min-width:700px){.lab{flex-basis:118px;font-size:17px}}
+</style></head><body>
+<div id="porte"><form id="f"><b>Tier list</b><input id="c" placeholder="Code" autocomplete="off" autocapitalize="off"><button class="go">Ouvrir</button><span id="err"></span></form></div>
+<div id="app">
+ <header><input id="nom" placeholder="Ton prénom" maxlength="20"><button id="raz">Reset</button><button id="env" class="go">Envoyer</button></header>
+ <div id="tiers"></div>
+ <div id="bas"><div id="aide">Glisse les photos, ou touche une photo puis une ligne</div><div id="bac"></div></div>
+</div>
+<script>
+const TIERS=[["SOBRE","#ff5a5f"],["3 VERRES","#ff8c1a"],["6 VERRES","#ffd23f"],["10+ VERRES","#a4e02d"],["3H DU MAT'","#2fe07a"]];
+const $=s=>document.querySelector(s);let ITEMS=[],place={},choisi=null;
+const u=b=>new Uint8Array(b);
+async function ouvrir(code){
+ const b=await(await fetch("data.enc",{cache:"no-cache"})).arrayBuffer();
+ const k=await crypto.subtle.importKey("raw",new TextEncoder().encode(code),"PBKDF2",false,["deriveKey"]);
+ const key=await crypto.subtle.deriveKey({name:"PBKDF2",salt:u(b.slice(0,16)),iterations:300000,hash:"SHA-256"},k,{name:"AES-GCM",length:256},false,["decrypt"]);
+ const p=await crypto.subtle.decrypt({name:"AES-GCM",iv:u(b.slice(16,28))},key,u(b.slice(28)));
+ ITEMS=JSON.parse(new TextDecoder().decode(p));localStorage.code=code;demarrer();
+}
+function demarrer(){
+ $("#porte").style.display="none";$("#app").style.display="flex";
+ try{place=JSON.parse(localStorage.place||"{}")}catch(e){place={}}
+ $("#nom").value=localStorage.nom||"";
+ $("#tiers").innerHTML=TIERS.map((t,i)=>`<div class="rang" data-r="${i}"><div class="lab" style="background:${t[1]}">${t[0]}</div><div class="zone"></div></div>`).join("");
+ rendre();addEventListener("resize",tailles);
+}
+function carte(it){const d=document.createElement("div");d.className="it"+(choisi===it.id?" choisi":"");d.dataset.id=it.id;const i=new Image();i.src=it.img;i.alt="";i.draggable=false;const s=document.createElement("span");s.textContent=it.nom;d.append(i,s);d.onpointerdown=e=>tirer(e,it.id,d);return d}
+function rendre(){
+ const z=[...document.querySelectorAll(".zone")];z.forEach(x=>x.innerHTML="");$("#bac").innerHTML="";
+ ITEMS.forEach(it=>{const r=place[it.id];(r!==undefined&&z[r]?z[r]:$("#bac")).append(carte(it))});
+ $("#bas").style.display=$("#bac").children.length?"":"none";tailles();localStorage.place=JSON.stringify(place);
+}
+function tailles(){document.querySelectorAll(".zone").forEach(z=>{const n=z.children.length;if(!n)return;const w=z.clientWidth-4,h=z.clientHeight-4;let s=0;for(let c=1;c<=n;c++){s=Math.max(s,Math.min(w/c,h/Math.ceil(n/c)))}s=Math.floor(s)-2;for(const d of z.children){d.style.width=d.style.height=s+"px"}})}
+function cible(x,y){const e=document.elementFromPoint(x,y);if(!e)return null;return e.closest(".rang,#bac")}
+function poser(id,c){if(c.id==="bac")delete place[id];else place[id]=+c.dataset.r;choisi=null;rendre()}
+function tirer(e,id,d){
+ e.stopPropagation();const x0=e.clientX,y0=e.clientY;let f=null,sur=null;
+ const fin=()=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up);removeEventListener("pointercancel",an)};
+ const mv=m=>{
+  if(!f&&Math.hypot(m.clientX-x0,m.clientY-y0)>7){f=d.cloneNode(true);f.id="fantome";f.onpointerdown=null;f.style.width=f.style.height="";document.body.append(f);d.style.opacity=.3}
+  if(f){m.preventDefault();f.style.left=m.clientX+"px";f.style.top=m.clientY+"px";const c=cible(m.clientX,m.clientY);if(c!==sur){sur&&sur.classList.remove("sur");c&&c.classList.add("sur");sur=c}}
+ };
+ const up=m=>{fin();if(f){f.remove();sur&&sur.classList.remove("sur");if(sur)poser(id,sur);else rendre()}else if(choisi&&choisi!==id){const c=cible(m.clientX,m.clientY);if(c)poser(choisi,c)}else{choisi=choisi===id?null:id;rendre()}};
+ const an=()=>{fin();if(f){f.remove();sur&&sur.classList.remove("sur");rendre()}};
+ addEventListener("pointermove",mv,{passive:false});addEventListener("pointerup",up);addEventListener("pointercancel",an);
+}
+document.addEventListener("click",e=>{if(!choisi)return;const c=e.target.closest(".rang,#bac");if(c&&!e.target.closest(".it"))poser(choisi,c)});
+$("#raz").onclick=()=>{if(confirm("Tout recommencer ?")){place={};choisi=null;rendre()}};
+$("#nom").oninput=e=>localStorage.nom=e.target.value;
+async function image(){
+ const W=1080,lab=190,pad=8,cell=170,C=document.createElement("canvas"),g=C.getContext("2d");
+ const par=TIERS.map((_,i)=>ITEMS.filter(t=>place[t.id]===i));const cols=Math.floor((W-lab-pad)/(cell+pad));
+ const hs=par.map(l=>Math.max(1,Math.ceil(l.length/cols))*(cell+pad)+pad);C.width=W;C.height=110+hs.reduce((a,b)=>a+b+6,0);
+ g.fillStyle="#15161a";g.fillRect(0,0,W,C.height);g.fillStyle="#fff";g.font="800 46px system-ui,sans-serif";g.textBaseline="middle";g.fillText("Tier list de "+($("#nom").value.trim()||"???"),20,56);
+ const imgs={};await Promise.all(ITEMS.map(t=>new Promise(r=>{const i=new Image();i.onload=()=>{imgs[t.id]=i;r()};i.onerror=r;i.src=t.img})));
+ let y=110;TIERS.forEach((t,i)=>{g.fillStyle="#24262d";g.fillRect(0,y,W,hs[i]);g.fillStyle=t[1];g.fillRect(0,y,lab,hs[i]);g.fillStyle="#111";g.font="800 30px system-ui,sans-serif";g.textAlign="center";g.fillText(t[0],lab/2,y+hs[i]/2);g.textAlign="left";
+  par[i].forEach((it,k)=>{const x=lab+pad+(k%cols)*(cell+pad),yy=y+pad+Math.floor(k/cols)*(cell+pad),m=imgs[it.id];if(m){const s=Math.min(m.width,m.height);g.drawImage(m,(m.width-s)/2,(m.height-s)/2,s,s,x,yy,cell,cell)}g.fillStyle="#000a";g.fillRect(x,yy+cell-32,cell,32);g.fillStyle="#fff";g.font="700 22px system-ui,sans-serif";g.textAlign="center";g.fillText(it.nom,x+cell/2,yy+cell-15,cell-6);g.textAlign="left"});y+=hs[i]+6});
+ return new Promise(r=>C.toBlob(r,"image/jpeg",.9));
+}
+window.tierImage=image;
+$("#env").onclick=async()=>{const b=await image(),n="tierlist-"+($("#nom").value.trim()||"moi")+".jpg",F=new File([b],n,{type:"image/jpeg"});
+ if(navigator.canShare&&navigator.canShare({files:[F]})){try{await navigator.share({files:[F]})}catch(e){}return}
+ const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=n;a.click();$("#aide").textContent="Image téléchargée, envoie-la dans le groupe";$("#bas").style.display=""};
+$("#f").onsubmit=async e=>{e.preventDefault();$("#err").textContent="";try{await ouvrir($("#c").value.trim())}catch(x){$("#err").textContent="Code pas bon"}};
+const h=new URLSearchParams(location.hash.slice(1)).get("code");if(h){history.replaceState(0,"",location.pathname)}
+const code0=h||localStorage.code;if(code0)ouvrir(code0).catch(()=>{delete localStorage.code});
+</script></body></html>
